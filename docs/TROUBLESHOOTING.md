@@ -15,3 +15,6 @@ The basic installation intentionally excludes the optional TrueData WebSocket SD
 | Missing historical data | The repository excludes private/provider archives. Download through your own permitted provider; do not expect the author's past scans to be bundled. |
 
 To update a ZIP installation: stop the app, extract the new ZIP into a separate folder, copy your `.env` locally if desired, run SETUP and START there. Keep your old folder until the new installation works. Never upload the `.env` or databases when asking for help.
+# Historical refresh staged for provenance review
+
+The archive now preserves incoming provider snapshots separately. If existing data has unknown provenance, a provider changes, or a refresh omits older dates, it will not silently merge the new candles. The existing series stays available but may remain stale. Ask your coding assistant to inspect series_review_queue and the local data/source_snapshots evidence. Do not clear the queue or guess an adjustment basis merely to remove the message. This affects the research archive; live scan quote fetching remains separate.

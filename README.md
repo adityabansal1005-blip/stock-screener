@@ -28,6 +28,18 @@ AI and broker APIs may require separate access, quotas or billing. Installing th
 
 ## Everyday flow
 
+### Fund research
+
+Open **Fund Research** from the dashboard to inspect local portfolio tests and data readiness. **RESEARCH.cmd** audits your local historical archive; it does not download data, place trades, or run a new strategy search. The new engine separates source provenance, investment rules, cash/holdings accounting and validation. Read [the frozen fund protocol](docs/FUND_PROTOCOL.md) before running research.
+
+For a developer-run legacy diagnostic only:
+
+```powershell
+.\.venv\Scripts\python.exe -m fund_engine.run --archive strategy_data.db --output fund_runs\my_first_diagnostic --diagnostic
+```
+
+The output folder must be new. This uses 2016–2020 only, with four fixed monthly portfolio arms and doubled-cost checks. Legacy adjusted prices produce normalized-unit diagnostics, not verified real-share backtests. Missing held valuations stop a run. The source archive is never modified.
+
 **START → choose universe → Rescan → inspect the scan date → review eligible candidates → inspect financial risks → record a research decision.**
 
 - Swing scores use completed daily sessions. During market hours, live quotes can move while the swing score remains based on the previous completed session.

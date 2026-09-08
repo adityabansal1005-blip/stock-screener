@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import contextlib
 import io
+import hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -36,13 +37,29 @@ CREATE TABLE IF NOT EXISTS cache_meta (
     symbol      TEXT PRIMARY KEY,
     last_fetched TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS series_provenance (
+    symbol TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    price_basis TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS series_review_queue (
+    symbol TEXT PRIMARY KEY,
+    attempted_date TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    snapshot_path TEXT NOT NULL
+);
 """
 
 
+@contextlib.contextmanager
 def _conn():
     c = sqlite3.connect(str(_DB_PATH))
-    c.execute("PRAGMA journal_mode=WAL")
-    return c
+    try:
+        c.execute("PRAGMA journal_mode=WAL")
+        with c:
+            yield c
+    finally:
+        c.close()
 
 
 def _init():
@@ -153,14 +170,44 @@ def _fetch(symbol: str) -> pd.DataFrame | None:
             print(f"[DataMgr] {symbol}: {src.__name__} failed ({str(e)[:60]})")
             continue
         if df is not None and len(df) >= 200:
+            df.attrs['provider'] = src.__name__
+            df.attrs['price_basis'] = 'total_return_adjusted' if src is _yf_fetch else 'unknown'
             return df
     return None
 
 
 def _store(symbol: str, df: pd.DataFrame):
+    # Retain each provider's incoming series before deciding whether it can update
+    # legacy data. Unknown provenance is never silently mixed with a new scale.
+    from fund_engine.data import Provenance, save_snapshot
+    provider = df.attrs.get('provider', 'unknown')
+    basis = df.attrs.get('price_basis', 'unknown')
+    content_hash = hashlib.sha256(df.to_csv().encode()).hexdigest()
+    symbol_id = hashlib.sha256(symbol.encode()).hexdigest()[:16]
+    snapshot_id = hashlib.sha256((provider+'|'+basis+'|'+content_hash).encode()).hexdigest()
+    series_dir = _DB_PATH.parent / 'data' / 'source_snapshots' / symbol_id / snapshot_id
+    if not series_dir.exists():
+        save_snapshot(df, series_dir, Provenance(provider, basis, 'unknown'))
     rows = [(symbol, d.strftime("%Y-%m-%d"), r.open, r.high, r.low, r.close, r.volume)
             for d, r in df.iterrows()]
     with _lock, _conn() as c:
+        existing = c.execute('SELECT count(*) FROM ohlcv WHERE symbol=?', (symbol,)).fetchone()[0]
+        provenance = c.execute('SELECT source,price_basis FROM series_provenance WHERE symbol=?', (symbol,)).fetchone()
+        reason = None
+        if existing and (provenance is None or tuple(provenance) != (provider,basis)):
+            reason = 'unknown_or_changed_provider_basis'
+        elif existing:
+            # Same provider can revise an adjusted series after a corporate action.
+            # A partial replacement must not leave older bars on another scale.
+            old_dates = {r[0] for r in c.execute('SELECT date FROM ohlcv WHERE symbol=?',(symbol,))}
+            if not old_dates.issubset({r[1] for r in rows}):
+                reason = 'partial_history_requires_review'
+        if reason:
+            c.execute('INSERT OR REPLACE INTO series_review_queue VALUES(?,?,?,?)',
+                      (symbol,date.today().isoformat(),reason,str(series_dir)))
+            c.commit()
+            print(f'[DataMgr] {symbol}: refresh staged for provenance review; existing history preserved')
+            return False
         c.executemany(
             "INSERT OR REPLACE INTO ohlcv(symbol,date,open,high,low,close,volume) VALUES(?,?,?,?,?,?,?)",
             rows
@@ -169,13 +216,19 @@ def _store(symbol: str, df: pd.DataFrame):
             "INSERT OR REPLACE INTO cache_meta(symbol, last_fetched) VALUES(?,?)",
             (symbol, datetime.now().strftime("%Y-%m-%d"))
         )
+        c.execute('INSERT OR REPLACE INTO series_provenance VALUES(?,?,?)',(symbol,provider,basis))
+        c.execute('DELETE FROM series_review_queue WHERE symbol=?',(symbol,))
         c.commit()
+    return True
 
 
 def _is_stale(symbol: str) -> bool:
     """Returns True if data is missing or was last fetched before today."""
     today = date.today().isoformat()
     with _lock, _conn() as c:
+        pending = c.execute('SELECT attempted_date FROM series_review_queue WHERE symbol=?',(symbol,)).fetchone()
+        if pending and pending[0] == today:
+            return False  # Avoid repeatedly downloading a quarantined series today.
         row = c.execute(
             "SELECT last_fetched FROM cache_meta WHERE symbol=?", (symbol,)
         ).fetchone()

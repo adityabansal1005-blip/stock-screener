@@ -4,6 +4,8 @@ Read README.md first. Help nontechnical users one clear step at a time. Use Wind
 
 Primary flow: START.cmd -> main.py -> scanner.py -> signals.py / technical_enhanced.py -> screening_policy.py -> templates/index.html. Persistence lives in db.py and data_manager.py. All generated databases/caches are local and ignored.
 
+Fund research: read docs/FUND_PROTOCOL.md. fund_engine separates provenance, strategies, ledger, paper journal and optional bull/bear memo validation. RESEARCH.cmd is audit-only; --diagnostic is explicitly unverified normalized-unit research. Never describe it as real-share or total-return validation. fund_runs is private generated output. The new data_manager archives incoming provider snapshots and quarantines source/basis changes or partial refreshes instead of mixing scales. A review queue can mean history stays stale; disclose it rather than bypassing the safeguard.
+
 Run `python scripts/doctor.py`, `python audit_tests.py`, and `python smoke_app.py` in the project environment. The smoke test blocks external network. New behavior needs meaningful tests, especially entry/exit timing, partial sessions, missing-data treatment and financial-risk gates. Do not claim installation or market connectivity succeeded unless tested.
 
 Preserve completed-session swing scoring. Keep live quotes separate. Score version measurement-v2-no-rr removes modelled risk/reward points and denominator capacity. No probability claims. `screen_eligible` means eligible for research, not approved to trade; `actionable` remains false. Known financial risks require documented human review to clear. Unknown is not passed.

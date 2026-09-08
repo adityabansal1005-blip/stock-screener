@@ -38,6 +38,8 @@ def _clean(obj):
 app = FastAPI(title="NSE Stock Signal Dashboard")
 from trading_research import router as trading_research_router
 app.include_router(trading_research_router)
+from fund_engine.web import router as fund_research_router
+app.include_router(fund_research_router)
 
 _cache = {
     "swing":    {"data": [], "last_updated": None, "loading": False, "_ts": 0},

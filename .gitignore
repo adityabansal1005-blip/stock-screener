@@ -24,6 +24,7 @@ output/
 logs/
 paper_records/
 backups/
+fund_runs/
 # Runtimes and external source
 .venv*/
 .python-runtime/
