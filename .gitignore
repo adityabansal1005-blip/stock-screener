@@ -1,0 +1,35 @@
+# Personal configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Generated state and licensed/personal market data
+*.db
+*.db-*
+*.sqlite*
+*.pkl
+*.pickle
+*.csv
+*.csv.gz
+*.parquet
+*.log
+*.tmp
+*.json
+!financial_risk_registry.json
+research_reports/
+repaired_full_replay/
+data/
+output/
+logs/
+paper_records/
+backups/
+# Runtimes and external source
+.venv*/
+.python-runtime/
+tradingagents-vendor/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+Thumbs.db
